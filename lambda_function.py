@@ -1,38 +1,100 @@
 import openai
 import os
 import json
+import re
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
+
 slack_client = WebClient(token=os.environ["SLACK_BOT_TOKEN"])
 openai.api_key = os.environ["OPENAI_API_KEY"]
+CHAT_GPT_SYSTEM_PROMPT = """
+You are an excellent AI assistant Slack Bot.
+Please output your response message according to following format.
+
+- bold: "*bold*"
+- italic: "_italic_"
+- strikethrough: "~strikethrough~"
+- code: " \`code\` "
+- link: "<https://slack.com|link text>"
+- block: "\`\`\` code block \`\`\`"
+- bulleted list: "* item1"
+
+Be sure to include a space before and after the single quote in the sentence.
+ex) word\`code\`word -> word \`code\` word
+
+If the question is Japanese, please answer in Japanese.
+
+Let's begin.
+"""
 
 def lambda_handler(event, context):
+    
     print("event: ", event)
     if "x-slack-retry-num" in event["headers"]:
         return {"statusCode": 200, "body": json.dumps({"message": "No need to resend"})}
 
     body = json.loads(event["body"])
-    text = body["event"]["text"].replace("<@.*>", "")
-    print("input: ", text)
-
-    openai_response = create_completion(text)
-
+    text = re.sub(r"<@.*>", "", body["event"]["text"])
+    channel = body["event"]["channel"]
     thread_ts = body["event"].get("thread_ts") or body["event"]["ts"]
-    post_message(body["event"]["channel"], openai_response, thread_ts)
+    print("input: ", text, "channel: ", channel, "thread:", thread_ts)
+
+    # get thread messages
+    thread_messages_response = slack_client.conversations_replies(channel=channel, ts=thread_ts)
+    messages = thread_messages_response["messages"]
+    messages.sort(key=lambda x: float(x["ts"]))
+    #print("messages:",messages)
+
+    # get recent 20 messages in the thread
+    prev_messages = [
+        {
+            "role": "assistant" if "bot_id" in m and m["bot_id"] else "user",
+            "content": re.sub(r"<@.*>|`info: prompt.*USD\)` \n", "", m["text"]),
+        }
+        for m in messages[0:][-30:]
+    ]
+    print("prev_messages:",prev_messages)
+
+    # Create_completion
+    openai_response = create_completion(prev_messages,text)
+    print("openaiResponse: ", openai_response)
+    tkn_pro = openai_response["usage"]["prompt_tokens"]
+    tkn_com = openai_response["usage"]["completion_tokens"]
+    tkn_tot = openai_response["usage"]["total_tokens"]
+    cost = tkn_tot * 0.002 / 1000
+    msg_head = " `info: prompt + completion = %s + %s = %s tokens(%.3f USD)` \n" % (tkn_pro,tkn_com,tkn_tot,cost)
+    res_text = openai_response["choices"][0]["message"]["content"]
+    answer = msg_head + res_text
+    print("answer:",answer)
+    post_message(channel, answer, thread_ts)
 
     return {"statusCode": 200, "body": json.dumps({"message": openai_response})}
 
-def create_completion(text):
+
+
+
+def create_completion(prev_msg,new_text):
+    model="gpt-3.5-turbo"
+    prompt=[
+        {
+            "role": "system",
+            "content": CHAT_GPT_SYSTEM_PROMPT
+        },
+        *prev_msg,
+        {
+            "role": "user",
+            "content": new_text
+        },
+    ]
+    print("mdoel:",model,"prompt:",prompt)
     try:
-        response = openai.Completion.create(
-            model="text-davinci-003",
-            prompt=text,
-            temperature=0.5,
-            max_tokens=2048
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=prompt
         )
-        print("openaiResponse: ", response)
-        return response.choices[0].text
+        #print("openaiResponse: ", response)
+        return response
     except Exception as err:
         print("Error: ", err)
 
@@ -41,8 +103,9 @@ def post_message(channel, text, thread_ts):
         response = slack_client.chat_postMessage(
             channel=channel,
             text=text,
-            as_user=True
-#            thread_ts=thread_ts
+            as_user=True,
+            thread_ts=thread_ts,
+            reply_broadcast=True
         )
         print("slackResponse: ", response)
     except SlackApiError as e:
