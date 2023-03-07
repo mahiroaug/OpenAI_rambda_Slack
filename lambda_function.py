@@ -46,11 +46,11 @@ def lambda_handler(event, context):
     messages.sort(key=lambda x: float(x["ts"]))
     #print("messages:",messages)
 
-    # get recent 20 messages in the thread
+    # get recent 30 messages in the thread
     prev_messages = [
         {
             "role": "assistant" if "bot_id" in m and m["bot_id"] else "user",
-            "content": re.sub(r"<@.*>|`info: prompt.*USD\)` \n", "", m["text"]),
+            "content": re.sub(r"<@.*>|`info: prompt.*USD\)` ", "", m["text"]),
         }
         for m in messages[0:][-30:]
     ]
@@ -63,9 +63,10 @@ def lambda_handler(event, context):
     tkn_com = openai_response["usage"]["completion_tokens"]
     tkn_tot = openai_response["usage"]["total_tokens"]
     cost = tkn_tot * 0.002 / 1000
-    msg_head = " `info: prompt + completion = %s + %s = %s tokens(%.3f USD)` \n" % (tkn_pro,tkn_com,tkn_tot,cost)
+    msg_head = "\n `info: prompt + completion = %s + %s = %s tokens(%.4f USD)` " % (tkn_pro,tkn_com,tkn_tot,cost)
     res_text = openai_response["choices"][0]["message"]["content"]
-    answer = msg_head + res_text
+    ##answer = msg_head + res_text
+    answer = res_text + msg_head
     print("answer:",answer)
     post_message(channel, answer, thread_ts)
 
