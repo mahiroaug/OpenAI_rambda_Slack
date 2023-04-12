@@ -7,6 +7,7 @@ from slack_sdk.errors import SlackApiError
 
 
 slack_client = WebClient(token=os.environ["SLACK_BOT_TOKEN"])
+openai.organization = os.environ["OPENAI_ORGANIZATION"]
 openai.api_key = os.environ["OPENAI_API_KEY"]
 CHAT_GPT_SYSTEM_PROMPT = """
 You are an excellent AI assistant Slack Bot.
