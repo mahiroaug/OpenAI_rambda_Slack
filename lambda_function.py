@@ -47,7 +47,7 @@ def lambda_handler(event, context):
     messages.sort(key=lambda x: float(x["ts"]))
     #print("messages:",messages)
 
-    # get recent 20 messages in the thread
+    # get recent 30 messages in the thread
     prev_messages = [
         {
             "role": "assistant" if "bot_id" in m and m["bot_id"] else "user",
