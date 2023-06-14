@@ -77,7 +77,7 @@ def lambda_handler(event, context):
 
 
 def create_completion(prev_msg,new_text):
-    model="gpt-3.5-turbo"
+    model="gpt-3.5-turbo-0613"
     prompt=[
         {
             "role": "system",
