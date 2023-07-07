@@ -10,6 +10,8 @@ slack_client = WebClient(token=os.environ["SLACK_BOT_TOKEN"])
 openai.organization = os.environ["OPENAI_ORGANIZATION"]
 openai.api_key = os.environ["OPENAI_API_KEY"]
 OPENAI_GPT_MODEL = os.environ["OPENAI_GPT_MODEL"]
+OPENAI_PRICE_INPUT = os.environ["OPENAI_PRICE_INPUT"]
+OPENAI_PRICE_OUTPUT = os.environ["OPENAI_PRICE_OUTPUT"]
 CHAT_GPT_SYSTEM_PROMPT = """
 You are an excellent AI assistant Slack Bot.
 Please output your response message according to following format.
@@ -64,7 +66,9 @@ def lambda_handler(event, context):
     tkn_pro = openai_response["usage"]["prompt_tokens"]
     tkn_com = openai_response["usage"]["completion_tokens"]
     tkn_tot = openai_response["usage"]["total_tokens"]
-    cost = tkn_tot * 0.002 / 1000
+    cost_pro = tkn_pro * float(OPENAI_PRICE_INPUT) / 1000
+    cost_com = tkn_com * float(OPENAI_PRICE_OUTPUT) / 1000
+    cost = cost_pro + cost_com
     msg_head = "\n `info: prompt + completion = %s + %s = %s tokens(%.4f USD)` " % (tkn_pro,tkn_com,tkn_tot,cost)
     res_text = openai_response["choices"][0]["message"]["content"]
     ##answer = msg_head + res_text
