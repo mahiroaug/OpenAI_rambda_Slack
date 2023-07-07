@@ -9,6 +9,7 @@ from slack_sdk.errors import SlackApiError
 slack_client = WebClient(token=os.environ["SLACK_BOT_TOKEN"])
 openai.organization = os.environ["OPENAI_ORGANIZATION"]
 openai.api_key = os.environ["OPENAI_API_KEY"]
+OPENAI_GPT_MODEL = os.environ["OPENAI_GPT_MODEL"]
 CHAT_GPT_SYSTEM_PROMPT = """
 You are an excellent AI assistant Slack Bot.
 Please output your response message according to following format.
@@ -77,7 +78,7 @@ def lambda_handler(event, context):
 
 
 def create_completion(prev_msg,new_text):
-    model="gpt-3.5-turbo-0613"
+    model=OPENAI_GPT_MODEL
     prompt=[
         {
             "role": "system",
