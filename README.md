@@ -1,10 +1,18 @@
-# OpenAI_rambda_Slack
-
+# OpenAI
 
 ## setting environment
+
 - OPENAI_API_KEY
 - OPENAI_ORGANIZATION
 - OPENAI_GPT_MODEL
 - OPENAI_PRICE_INPUT
 - OPENAI_PRICE_OUTPUT
+- SLACK_BOT_TOKEN
+
+# Anthropic
+
+## setting environment
+
+- ANTHROPIC_API_KEY
+- ANTHROPIC_MODEL
 - SLACK_BOT_TOKEN

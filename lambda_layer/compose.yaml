@@ -1,0 +1,10 @@
+#version: "3"
+services:
+  aws_lambda_layers:
+    container_name: MyLayerContainer
+    build:
+      context: "."
+    volumes:
+      - "./layers:/home/layers"
+    working_dir: "/home"
+    command: sh -c "python3.12 -m pip install -r layers/requirements.txt -t python/ && zip -r layers/file.zip python/"
