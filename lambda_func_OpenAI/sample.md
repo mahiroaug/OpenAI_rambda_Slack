@@ -1,0 +1,27 @@
+```
+ChatCompletion(
+    id='chatcmpl-9P7fNRJM6vzQPtUegjszkiYWgJjDs',
+    choices=[
+        Choice(
+            finish_reason='stop',
+            index=0,
+            logprobs=None,
+            message=ChatCompletionMessage(
+                content='*欲しいなら*、_代価を_~支払わねば~ならない。',
+                role='assistant',
+                function_call=None,
+                tool_calls=None
+            )
+        )
+    ],
+    created=1715774697,
+    model='gpt-4o-2024-05-13',
+    object='chat.completion',
+    system_fingerprint='fp_729ea513f7', u
+    sage=CompletionUsage(
+        completion_tokens=21,
+        prompt_tokens=159,
+        total_tokens=180
+    )
+)
+```

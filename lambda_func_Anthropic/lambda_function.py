@@ -103,7 +103,8 @@ def lambda_handler(event, context):
 def convert_raw_to_str(raw0):
     res1 = raw0.replace("\\n", "\n")
     res2 = res1.replace("\\`", "`")
-    return res2
+    res3 = res2.replace("\`", "`")
+    return res3
 
 def create_completion(prev_msg):
     model=ANTHROPIC_MODEL

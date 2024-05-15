@@ -1,18 +1,20 @@
-import openai
 import os
 import json
 import re
+from openai import OpenAI
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 
 slack_client = WebClient(token=os.environ["SLACK_BOT_TOKEN"])
-openai.organization = os.environ["OPENAI_ORGANIZATION"]
-openai.api_key = os.environ["OPENAI_API_KEY"]
+openai_client = OpenAI(
+    api_key=os.environ["OPENAI_API_KEY"],
+    organization=os.environ["OPENAI_ORGANIZATION"]
+)
 OPENAI_GPT_MODEL = os.environ["OPENAI_GPT_MODEL"]
-OPENAI_PRICE_INPUT = os.environ["OPENAI_PRICE_INPUT"]
-OPENAI_PRICE_OUTPUT = os.environ["OPENAI_PRICE_OUTPUT"]
-CHAT_GPT_SYSTEM_PROMPT = """
+OPENAI_PRICE_INPUT = os.environ["OPENAI_PRICE_INPUT"] # per 1000 tokens
+OPENAI_PRICE_OUTPUT = os.environ["OPENAI_PRICE_OUTPUT"] # per 1000 tokens
+CHAT_GPT_SYSTEM_PROMPT = r"""
 You are an excellent AI assistant Slack Bot.
 Please output your response message according to following format.
 
@@ -33,23 +35,29 @@ Let's begin.
 """
 
 def lambda_handler(event, context):
-    
     print("event: ", event)
-    if "x-slack-retry-num" in event["headers"]:
+    
+    # prevent dual launch
+    if "X-Slack-Retry-Num" in event["headers"]:
         return {"statusCode": 200, "body": json.dumps({"message": "No need to resend"})}
-
+    
+    ### initializer ####################################
     body = json.loads(event["body"])
     text = re.sub(r"<@.*>", "", body["event"]["text"])
     channel = body["event"]["channel"]
     thread_ts = body["event"].get("thread_ts") or body["event"]["ts"]
+    userId = body["event"]["user"]
     print("input: ", text, "channel: ", channel, "thread:", thread_ts)
+    
 
+    ### preparation ####################################
+    
     # get thread messages
     thread_messages_response = slack_client.conversations_replies(channel=channel, ts=thread_ts)
     messages = thread_messages_response["messages"]
     messages.sort(key=lambda x: float(x["ts"]))
     #print("messages:",messages)
-
+    
     # get recent 30 messages in the thread
     prev_messages = [
         {
@@ -60,28 +68,57 @@ def lambda_handler(event, context):
     ]
     print("prev_messages:",prev_messages)
 
+
+
+    ### COMPLETION (bot conversation) ####################################
+
+
     # Create_completion
-    openai_response = create_completion(prev_messages,text)
+    openai_response = create_completion(prev_messages)
     print("openaiResponse: ", openai_response)
-    tkn_pro = openai_response["usage"]["prompt_tokens"]
-    tkn_com = openai_response["usage"]["completion_tokens"]
-    tkn_tot = openai_response["usage"]["total_tokens"]
-    cost_pro = tkn_pro * float(OPENAI_PRICE_INPUT) / 1000
-    cost_com = tkn_com * float(OPENAI_PRICE_OUTPUT) / 1000
+    
+    str_response = str(openai_response)
+    
+    # Extract 'content' value
+    match = re.search(r"content='(.*?)'", str_response)
+    if match is None:
+        match = re.search(r'content="(.*?)"', str_response)
+    content = match.group(1)
+
+    # Extract 'tokens' values
+    completion_tokens = int(re.search(r"completion_tokens=(\d+)", str_response).group(1))
+    prompt_tokens = int(re.search(r"prompt_tokens=(\d+)", str_response).group(1))
+    total_tokens = int(re.search(r"total_tokens=(\d+)", str_response).group(1))
+
+    print('Content:', content)
+    print('Completion Tokens:', completion_tokens)
+    print('Prompt Tokens:', prompt_tokens)
+    print('Total Tokens:', total_tokens)
+        
+    
+    cost_pro = prompt_tokens * float(OPENAI_PRICE_INPUT) / 1000
+    cost_com = completion_tokens * float(OPENAI_PRICE_OUTPUT) / 1000
     cost = cost_pro + cost_com
-    msg_head = "\n `info: prompt + completion = %s + %s = %s tokens(%.4f USD)` " % (tkn_pro,tkn_com,tkn_tot,cost)
-    res_text = openai_response["choices"][0]["message"]["content"]
-    ##answer = msg_head + res_text
+    msg_head = "\n `info: prompt + completion = %s + %s = %s tokens(%.4f USD)` " % (prompt_tokens,completion_tokens,total_tokens,cost)
+ 
+ 
+    res_text = content
     answer = res_text + msg_head
-    print("answer:",answer)
-    post_message(channel, answer, thread_ts)
+    str_answer = convert_raw_to_str(answer)
+    print("str_answer:", str_answer)
+    
+    post_message(channel, str_answer, thread_ts)
 
     return {"statusCode": 200, "body": json.dumps({"message": openai_response})}
 
 
+def convert_raw_to_str(raw0):
+    res1 = raw0.replace("\\n", "\n")
+    res2 = res1.replace("\\`", "`")
+    res3 = res2.replace("\`", "`")
+    return res3
 
-
-def create_completion(prev_msg,new_text):
+def create_completion(prev_msg):
     model=OPENAI_GPT_MODEL
     prompt=[
         {
@@ -89,18 +126,14 @@ def create_completion(prev_msg,new_text):
             "content": CHAT_GPT_SYSTEM_PROMPT
         },
         *prev_msg,
-        {
-            "role": "user",
-            "content": new_text
-        },
     ]
     print("mdoel:",model,"prompt:",prompt)
     try:
-        response = openai.ChatCompletion.create(
+        response = openai_client.chat.completions.create(
             model=model,
             messages=prompt
         )
-        #print("openaiResponse: ", response)
+        print("openaiResponse: ", response)
         return response
     except Exception as err:
         print("Error: ", err)
