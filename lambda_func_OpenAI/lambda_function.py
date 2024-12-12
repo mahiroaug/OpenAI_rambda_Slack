@@ -122,7 +122,7 @@ def create_completion(prev_msg):
     model=OPENAI_GPT_MODEL
     prompt=[
         {
-            "role": "system",
+            "role": "user",
             "content": CHAT_GPT_SYSTEM_PROMPT
         },
         *prev_msg,
